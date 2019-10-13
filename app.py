@@ -32,8 +32,8 @@ handler = WebhookHandler(channel_secret)
 
 # TODO: deploy時に確認
 controller_host = os.environ['CONTROLLER_HOST']
-list_url = 'http://{}/commands/'.format(controller_host)
-transmit_url = 'http://{}/commands/transmit/{}'.format(controller_host, '{}')
+list_url = 'http://{}/codes/'.format(controller_host)
+transmit_url = 'http://{}/codes/{}'.format(controller_host, '{}')
 
 
 @app.route("/")
@@ -61,23 +61,27 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     r = requests.get(list_url)
-    commands = [
-        command['id']
-        for command in r.json()
+    codes = [
+        code['code_key']
+        for code in r.json()
     ]
 
     text = event.message.text
     if '停止' in text:
         r = requests.post(transmit_url.format('stop'))
-        text = 'エアコン止めたわ(・∀・)' if r.json()['success'] else '止めるの失敗したわ(・∀・)'
+        text = 'エアコン止めたわ(・∀・)' \
+            if int(r.text) == 0 else \
+            '止めるの失敗したわ(・∀・)'
     elif '冷房' in text or '暖房' in text:
         mode = 'c' if '冷房' in text else 'w'
-        temps = re.findall(r'[0-9]+', text)
+        temps = re.findall(r'[0-9]+(\.[0-9]+)?', text)
         if temps:
-            id_ = '{}{}'.format(mode, temps[0])
-            if id_ in commands:
-                r = requests.post(transmit_url.format(id_))
-                text = 'エアコン操作したよ(・∀・)' if r.json()['success'] else 'なんか失敗したわ(・∀・)'
+            key = '{}{}'.format(mode, temps[0])
+            if key in codes:
+                r = requests.post(transmit_url.format(key))
+                text = 'エアコン操作したよ(・∀・)' \
+                    if int(r.text) == 1 else \
+                    'なんか失敗したわ(・∀・)'
             else:
                 text = 'データベースに設定がなかったわ(・∀・)'
         else:
